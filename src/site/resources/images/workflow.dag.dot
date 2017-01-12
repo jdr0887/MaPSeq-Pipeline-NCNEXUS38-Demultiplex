@@ -1,0 +1,17 @@
+digraph G {
+rankdir=LR;
+  ConfigureBCLToFastqCLI_1 [ label="ConfigureBCLToFastqCLI_1" ];
+  MakeCLI_2 [ label="MakeCLI_2" ];
+  CopyCLI_3 [ label="CopyCLI_3" ];
+  CopyCLI_4 [ label="CopyCLI_4" ];
+  ConfigureBCLToFastqCLI_5 [ label="ConfigureBCLToFastqCLI_5" ];
+  MakeCLI_6 [ label="MakeCLI_6" ];
+  CopyCLI_7 [ label="CopyCLI_7" ];
+  CopyCLI_8 [ label="CopyCLI_8" ];
+  ConfigureBCLToFastqCLI_1 -> MakeCLI_2;
+  MakeCLI_2 -> CopyCLI_3;
+  MakeCLI_2 -> CopyCLI_4;
+  ConfigureBCLToFastqCLI_5 -> MakeCLI_6;
+  MakeCLI_6 -> CopyCLI_7;
+  MakeCLI_6 -> CopyCLI_8;
+}
