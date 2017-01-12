@@ -1,0 +1,54 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <parent>
+    <groupId>edu.unc.mapseq.pipelines</groupId>
+    <artifactId>ncnexus38-demultiplex</artifactId>
+    <version>0.6.1-SNAPSHOT</version>
+  </parent>
+  <name>MaPSeq :: Pipelines :: NCNEXUS38 :: Demultiplex :: Messaging</name>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>edu.unc.mapseq.pipelines.ncnexus38-demultiplex</groupId>
+  <artifactId>ncnexus38-demultiplex-messaging</artifactId>
+  <version>0.6.1-SNAPSHOT</version>
+  <packaging>bundle</packaging>
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-csv</artifactId>
+    </dependency>    
+    <dependency>
+      <groupId>edu.unc.mapseq.pipelines.ncnexus38-demultiplex</groupId>
+      <artifactId>ncnexus38-demultiplex-workflow</artifactId>
+    </dependency>       
+    <dependency>
+      <groupId>org.apache.servicemix.bundles</groupId>
+      <artifactId>org.apache.servicemix.bundles.xstream</artifactId>
+    </dependency>    
+    <dependency>
+      <groupId>org.apache.geronimo.specs</groupId>
+      <artifactId>geronimo-jms_1.1_spec</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.felix</groupId>
+      <artifactId>org.osgi.core</artifactId>
+    </dependency>    
+    <dependency>
+      <groupId>org.apache.activemq</groupId>
+      <artifactId>activemq-client</artifactId>
+    </dependency>    
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <configuration>
+          <instructions>
+            <Export-Package>edu.unc.mapseq.messaging.ncnexus38.demultiplex.*</Export-Package>
+	    <Import-Package>*</Import-Package>
+            <Private-Package />
+          </instructions>
+        </configuration>
+      </plugin>      
+    </plugins>
+  </build>
+</project>

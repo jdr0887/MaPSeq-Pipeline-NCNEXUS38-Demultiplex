@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0" default-activation="eager">
+
+  <reference id="connectionFactory" interface="javax.jms.ConnectionFactory" />
+
+  <reference id="NCNEXUSCASAVAWorkflowBeanService" interface="edu.unc.mapseq.workflow.WorkflowBeanService" component-name="NCNEXUSCASAVAWorkflowBeanService" />
+
+  <bean id="NCNEXUSCASAVAMessageListener" class="edu.unc.mapseq.messaging.ncnexus.casava.NCNEXUSCASAVAMessageListener">
+    <property name="workflowBeanService" ref="NCNEXUSCASAVAWorkflowBeanService" />
+    <property name="workflowName" value="NCNEXUSCASAVA" />
+    <property name="studyName" value="NCNEXUS" />
+  </bean>
+
+  <bean id="NCNEXUSCASAVAMessagingService" class="edu.unc.mapseq.messaging.ncnexus.casava.NCNEXUSCASAVAMessageService" init-method="start"
+    destroy-method="stop" activation="eager">
+    <property name="connectionFactory" ref="connectionFactory" />
+    <property name="messageListener" ref="NCNEXUSCASAVAMessageListener" />
+    <property name="destinationName" value="queue/ncnexus.casava" />
+  </bean>
+
+</blueprint>
