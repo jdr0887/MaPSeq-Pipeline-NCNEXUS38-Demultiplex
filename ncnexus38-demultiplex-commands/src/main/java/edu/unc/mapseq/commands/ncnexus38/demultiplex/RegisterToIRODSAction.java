@@ -16,7 +16,7 @@ import edu.unc.mapseq.dao.MaPSeqDAOBeanService;
 import edu.unc.mapseq.dao.MaPSeqDAOException;
 import edu.unc.mapseq.dao.model.WorkflowRun;
 
-@Command(scope = "ncnexus-casava", name = "register-to-irods", description = "Register a sample output to iRODS")
+@Command(scope = "ncnexus38-demultiplex", name = "register-to-irods", description = "Register a sample output to iRODS")
 @Service
 public class RegisterToIRODSAction implements Action {
 

@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 import edu.unc.mapseq.config.MaPSeqConfigurationService;
 import edu.unc.mapseq.dao.MaPSeqDAOBeanService;
 
-@Command(scope = "ncnexus-casava", name = "run-workflow", description = "Run NCNEXUS CASAVA Workflow")
+@Command(scope = "ncnexus38-demultiplex", name = "run-workflow", description = "Run NCNEXUS CASAVA Workflow")
 @Service
 public class RunWorkflowAction implements Action {
 

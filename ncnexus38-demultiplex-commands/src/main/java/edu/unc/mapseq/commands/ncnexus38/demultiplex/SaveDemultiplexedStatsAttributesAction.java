@@ -18,7 +18,7 @@ import edu.unc.mapseq.dao.MaPSeqDAOBeanService;
 import edu.unc.mapseq.dao.MaPSeqDAOException;
 import edu.unc.mapseq.dao.model.Flowcell;
 
-@Command(scope = "ncnexus-casava", name = "save-demultiplexed-stats-attributes", description = "Save Demultiplexed Stats Attributes")
+@Command(scope = "ncnexus38-demultiplex", name = "save-demultiplexed-stats-attributes", description = "Save Demultiplexed Stats Attributes")
 @Service
 public class SaveDemultiplexedStatsAttributesAction implements Action {
 

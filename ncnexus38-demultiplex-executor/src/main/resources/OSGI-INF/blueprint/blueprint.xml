@@ -2,24 +2,27 @@
 <blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0" default-activation="eager">
 
-  <cm:property-placeholder persistent-id="edu.unc.mapseq.executor.ncnexus.casava" update-strategy="reload">
+  <cm:property-placeholder persistent-id="edu.unc.mapseq.executor.ncnexus38.demultiplex"
+    update-strategy="reload">
     <cm:default-properties>
       <cm:property name="period" value="5" />
     </cm:default-properties>
   </cm:property-placeholder>
 
-  <reference id="NCNEXUSCASAVAWorkflowBeanService" interface="edu.unc.mapseq.workflow.WorkflowBeanService" component-name="NCNEXUSCASAVAWorkflowBeanService" />
+  <reference id="NCNEXUS38DemultiplexWorkflowBeanService" interface="edu.unc.mapseq.workflow.WorkflowBeanService"
+    component-name="NCNEXUS38DemultiplexWorkflowBeanService" />
 
-  <bean id="task" class="edu.unc.mapseq.executor.ncnexus.casava.NCNEXUSCASAVAWorkflowExecutorTask">
-    <property name="workflowBeanService" ref="NCNEXUSCASAVAWorkflowBeanService" />
-    <property name="workflowName" value="NCNEXUSCASAVA" />
+  <bean id="task" class="edu.unc.mapseq.executor.ncnexus38.demultiplex.NCNEXUS38DemultiplexWorkflowExecutorTask">
+    <property name="workflowBeanService" ref="NCNEXUS38DemultiplexWorkflowBeanService" />
+    <property name="workflowName" value="NCNEXUS38Demultiplex" />
   </bean>
 
-  <bean id="NCNEXUSCASAVAWorkflowExecutorService" class="edu.unc.mapseq.executor.ncnexus.casava.NCNEXUSCASAVAWorkflowExecutorService"
+  <bean id="NCNEXUS38DemultiplexWorkflowExecutorService" class="edu.unc.mapseq.executor.ncnexus38.demultiplex.NCNEXUS38DemultiplexWorkflowExecutorService"
     init-method="start" destroy-method="stop" activation="eager">
     <property name="task" ref="task" />
     <property name="period" value="${period}" />
-    <cm:managed-properties persistent-id="edu.unc.mapseq.executor.ncnexus.casava" update-strategy="container-managed" />
+    <cm:managed-properties persistent-id="edu.unc.mapseq.executor.ncnexus38.demultiplex"
+      update-strategy="container-managed" />
   </bean>
 
 </blueprint>

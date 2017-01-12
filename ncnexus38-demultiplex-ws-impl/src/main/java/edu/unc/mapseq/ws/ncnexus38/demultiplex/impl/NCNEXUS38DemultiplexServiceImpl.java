@@ -34,7 +34,7 @@ public class NCNEXUS38DemultiplexServiceImpl implements NCNEXUS38DemultiplexServ
         try {
 
             String mapseqOutputDirectory = System.getenv("MAPSEQ_OUTPUT_DIRECTORY");
-            File sampleSheetDirectory = new File(String.format("%s/%s/%s", mapseqOutputDirectory, "prod", "NCNEXUS"), "SampleSheets");
+            File sampleSheetDirectory = new File(String.format("%s/%s/%s", mapseqOutputDirectory, "exp", "NCNEXUS38"), "SampleSheets");
             if (!sampleSheetDirectory.exists()) {
                 sampleSheetDirectory.mkdirs();
             }

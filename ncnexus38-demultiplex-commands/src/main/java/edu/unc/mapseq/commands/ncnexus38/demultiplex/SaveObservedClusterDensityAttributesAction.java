@@ -18,7 +18,7 @@ import edu.unc.mapseq.dao.MaPSeqDAOBeanService;
 import edu.unc.mapseq.dao.MaPSeqDAOException;
 import edu.unc.mapseq.dao.model.Flowcell;
 
-@Command(scope = "ncnexus-casava", name = "save-observed-cluster-density-attributes", description = "Save Observed Cluster Density Attributes")
+@Command(scope = "ncnexus38-demultiplex", name = "save-observed-cluster-density-attributes", description = "Save Observed Cluster Density Attributes")
 @Service
 public class SaveObservedClusterDensityAttributesAction implements Action {
 

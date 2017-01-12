@@ -4,19 +4,20 @@
 
   <reference id="connectionFactory" interface="javax.jms.ConnectionFactory" />
 
-  <reference id="NCNEXUSCASAVAWorkflowBeanService" interface="edu.unc.mapseq.workflow.WorkflowBeanService" component-name="NCNEXUSCASAVAWorkflowBeanService" />
+  <reference id="NCNEXUS38DemultiplexWorkflowBeanService" interface="edu.unc.mapseq.workflow.WorkflowBeanService"
+    component-name="NCNEXUS38DemultiplexWorkflowBeanService" />
 
-  <bean id="NCNEXUSCASAVAMessageListener" class="edu.unc.mapseq.messaging.ncnexus.casava.NCNEXUSCASAVAMessageListener">
-    <property name="workflowBeanService" ref="NCNEXUSCASAVAWorkflowBeanService" />
-    <property name="workflowName" value="NCNEXUSCASAVA" />
-    <property name="studyName" value="NCNEXUS" />
+  <bean id="NCNEXUS38DemultiplexMessageListener" class="edu.unc.mapseq.messaging.ncnexus38.demultiplex.NCNEXUS38DemultiplexMessageListener">
+    <property name="workflowBeanService" ref="NCNEXUS38DemultiplexWorkflowBeanService" />
+    <property name="workflowName" value="NCNEXUS38Demultiplex" />
+    <property name="studyName" value="NCNEXUS38" />
   </bean>
 
-  <bean id="NCNEXUSCASAVAMessagingService" class="edu.unc.mapseq.messaging.ncnexus.casava.NCNEXUSCASAVAMessageService" init-method="start"
-    destroy-method="stop" activation="eager">
+  <bean id="NCNEXUS38DemultiplexMessagingService" class="edu.unc.mapseq.messaging.ncnexus38.demultiplex.NCNEXUS38DemultiplexMessageService"
+    init-method="start" destroy-method="stop" activation="eager">
     <property name="connectionFactory" ref="connectionFactory" />
-    <property name="messageListener" ref="NCNEXUSCASAVAMessageListener" />
-    <property name="destinationName" value="queue/ncnexus.casava" />
+    <property name="messageListener" ref="NCNEXUS38DemultiplexMessageListener" />
+    <property name="destinationName" value="queue/ncnexus38.demultiplex" />
   </bean>
 
 </blueprint>

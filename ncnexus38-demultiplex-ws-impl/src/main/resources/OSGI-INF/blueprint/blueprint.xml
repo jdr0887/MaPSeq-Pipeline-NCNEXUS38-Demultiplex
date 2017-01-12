@@ -13,21 +13,21 @@
 
   <reference id="fileDataDAO" interface="edu.unc.mapseq.dao.FileDataDAO" />
 
-  <bean id="ncnexus-casava" class="edu.unc.mapseq.ws.ncnexus.casava.impl.NCNEXUSCASAVAServiceImpl">
+  <bean id="ncnexus38-demultiplex" class="edu.unc.mapseq.ws.ncnexus38.demultiplex.impl.NCNEXUS38DemultiplexServiceImpl">
     <property name="flowcellStagingDirectory" value="/projects/sequence_analysis/medgendata" />
     <property name="fileDataDAO" ref="fileDataDAO" />
   </bean>
 
-  <jaxrs:server id="NCNEXUSCASAVAServiceRS" address="/NCNEXUSCASAVA">
+  <jaxrs:server id="NCNEXUS38DemultiplexServiceRS" address="/NCNEXUS38Demultiplex">
     <jaxrs:serviceBeans>
-      <ref component-id="ncnexus-casava" />
+      <ref component-id="ncnexus38-demultiplex" />
     </jaxrs:serviceBeans>
     <jaxrs:providers>
       <bean class="com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider" />
     </jaxrs:providers>
   </jaxrs:server>
 
-  <jaxws:endpoint id="NCNEXUSCASAVAServiceWS" implementor="#ncnexus-casava" address="/NCNEXUSCASAVAService">
+  <jaxws:endpoint id="NCNEXUS38DemultiplexServiceWS" implementor="#ncnexus38-demultiplex" address="/NCNEXUS38DemultiplexService">
     <jaxws:properties>
       <entry key="mtom-enabled" value="true" />
       <entry key="attachment-directory" value="/tmp" />
