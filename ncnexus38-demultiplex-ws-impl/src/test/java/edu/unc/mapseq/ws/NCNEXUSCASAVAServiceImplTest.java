@@ -15,7 +15,7 @@ import org.apache.cxf.frontend.ClientProxy;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.junit.Test;
 
-import edu.unc.mapseq.ws.ncnexus38.demultiplex.NCNEXUSCASAVAService;
+import edu.unc.mapseq.ws.ncnexus38.demultiplex.NCNEXUS38DemultiplexService;
 
 public class NCNEXUSCASAVAServiceImplTest {
 
@@ -26,13 +26,13 @@ public class NCNEXUSCASAVAServiceImplTest {
         Service service = Service.create(serviceQName);
         QName portQName = new QName("http://casava.ws.mapseq.unc.edu", "CASAVAPort");
         service.addPort(portQName, SOAPBinding.SOAP11HTTP_BINDING, String.format("http://%s:%d/cxf/CASAVAService", "152.19.198.146", 8181));
-        NCNEXUSCASAVAService casavaService = service.getPort(NCNEXUSCASAVAService.class);
+        NCNEXUS38DemultiplexService casavaService = service.getPort(NCNEXUS38DemultiplexService.class);
 
         Client cl = ClientProxy.getClient(casavaService);
         HTTPConduit httpConduit = (HTTPConduit) cl.getConduit();
         httpConduit.getClient().setReceiveTimeout(5 * 60 * 1000L);
 
-        Binding binding = ((BindingProvider) service.getPort(portQName, NCNEXUSCASAVAService.class)).getBinding();
+        Binding binding = ((BindingProvider) service.getPort(portQName, NCNEXUS38DemultiplexService.class)).getBinding();
         ((SOAPBinding) binding).setMTOMEnabled(true);
 
         try {
@@ -54,7 +54,7 @@ public class NCNEXUSCASAVAServiceImplTest {
         Service service = Service.create(serviceQName);
         service.addPort(portQName, SOAPBinding.SOAP11HTTP_MTOM_BINDING,
                 String.format("http://%s:%d/cxf/SequencerRunService", "biodev2.its.unc.edu", 8181));
-        NCNEXUSCASAVAService casavaService = service.getPort(NCNEXUSCASAVAService.class);
+        NCNEXUS38DemultiplexService casavaService = service.getPort(NCNEXUS38DemultiplexService.class);
         System.out.println(casavaService.assertDirectoryExists("121212_UNC13-SN749_0207_BD1LCDACXX"));
         System.out.println(casavaService.assertDirectoryExists("130116_UNC16-SN851_0202_AD1TP9ACXX"));
         System.out.println(casavaService.assertDirectoryExists("130117_UNC14-SN744_0297_BD1RDUACXX"));
