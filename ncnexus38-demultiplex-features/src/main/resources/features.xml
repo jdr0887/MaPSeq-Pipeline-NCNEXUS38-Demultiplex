@@ -1,14 +1,14 @@
-<features name="mapseq-pipeline-ncnexus-casava-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0">
+<features name="mapseq-pipeline-ncnexus38-demultiplex-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0">
 
-  <feature name="mapseq-pipeline-ncnexus-casava" version="${project.version}" resolver="(obr)">
+  <feature name="mapseq-pipeline-ncnexus38-demultiplex" version="${project.version}" resolver="(obr)">
     <bundle>mvn:org.jsoup/com.springsource.org.jsoup/1.5.2</bundle>
-    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-commons/${project.version}</bundle>
-    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-workflow/${project.version}</bundle>
-    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-commands/${project.version}</bundle>
-    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-ws-api/${project.version}</bundle>
-    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-ws-impl/${project.version}</bundle>
-    <bundle start-level="100">mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-executor/${project.version}</bundle>
-    <bundle start-level="100">mvn:edu.unc.mapseq.pipelines.ncnexus-casava/ncnexus-casava-messaging/${project.version}</bundle>
+    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-commons/${project.version}</bundle>
+    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-workflow/${project.version}</bundle>
+    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-commands/${project.version}</bundle>
+    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-ws-api/${project.version}</bundle>
+    <bundle>mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-ws-impl/${project.version}</bundle>
+    <bundle start-level="100">mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-executor/${project.version}</bundle>
+    <bundle start-level="100">mvn:edu.unc.mapseq.pipelines.ncnexus38-demultiplex/ncnexus38-demultiplex-messaging/${project.version}</bundle>
   </feature>
 
 </features>
