@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.jgrapht.DirectedGraph;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
@@ -25,6 +24,7 @@ import org.renci.jlrm.condor.CondorJobEdge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.unc.mapseq.commons.ncnexus38.demultiplex.CreateBasesMaskCallable;
 import edu.unc.mapseq.commons.ncnexus38.demultiplex.FindReadCountCallable;
 import edu.unc.mapseq.commons.ncnexus38.demultiplex.RegisterToIRODSRunnable;
 import edu.unc.mapseq.commons.ncnexus38.demultiplex.SaveDemultiplexedStatsAttributesRunnable;
@@ -68,7 +68,6 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
         WorkflowRun workflowRun = attempt.getWorkflowRun();
 
         boolean allowMismatches = true;
-        Integer barcodeLength = Integer.valueOf(8);
 
         String siteName = getWorkflowBeanService().getAttributes().get("siteName");
         String flowcellStagingDirectory = getWorkflowBeanService().getAttributes().get("flowcellStagingDirectory");
@@ -77,9 +76,6 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
         for (Attribute attribute : workflowRunAttributeList) {
             if (attribute.getName().equals("allowMismatches") && attribute.getValue().equalsIgnoreCase("false")) {
                 allowMismatches = false;
-            }
-            if (attribute.getName().equals("barcodeLength") && NumberUtils.isNumber(attribute.getValue())) {
-                barcodeLength = Integer.valueOf(attribute.getValue());
             }
         }
 
@@ -133,7 +129,8 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                 File flowcellStagingDir = new File(flowcellStagingDirectory, flowcell.getName());
 
-                List<Sample> sampleList = getWorkflowBeanService().getMaPSeqDAOBeanService().getSampleDAO().findByFlowcellId(flowcell.getId());
+                List<Sample> sampleList = getWorkflowBeanService().getMaPSeqDAOBeanService().getSampleDAO()
+                        .findByFlowcellId(flowcell.getId());
 
                 Map<Integer, List<Sample>> laneMap = new HashMap<Integer, List<Sample>>();
 
@@ -162,16 +159,18 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                 if (flowcellStagingDir.exists()) {
 
                     if (bclFlowcellDir.exists()) {
-                        CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, RemoveCLI.class, attempt.getId()).siteName(siteName);
+                        CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, RemoveCLI.class, attempt.getId())
+                                .siteName(siteName);
                         builder.addArgument(RemoveCLI.FILE, bclFlowcellDir.getAbsolutePath());
                         removeExistingBCLDirectoryJob = builder.build();
                         logger.info(removeExistingBCLDirectoryJob.toString());
                         graph.addVertex(removeExistingBCLDirectoryJob);
                     }
 
-                    CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, CopyDirectoryCLI.class, attempt.getId()).siteName(siteName);
-                    builder.addArgument(CopyDirectoryCLI.SOURCE, flowcellStagingDir.getAbsolutePath()).addArgument(CopyDirectoryCLI.DESTINATION,
-                            bclFlowcellDir.getAbsolutePath());
+                    CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, CopyDirectoryCLI.class, attempt.getId())
+                            .siteName(siteName);
+                    builder.addArgument(CopyDirectoryCLI.SOURCE, flowcellStagingDir.getAbsolutePath())
+                            .addArgument(CopyDirectoryCLI.DESTINATION, bclFlowcellDir.getAbsolutePath());
                     copyFromStagingJob = builder.build();
                     logger.info(copyFromStagingJob.toString());
                     graph.addVertex(copyFromStagingJob);
@@ -182,6 +181,10 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                 if (MapUtils.isNotEmpty(laneMap)) {
 
+                    File runInfoXmlFile = new File(flowcellStagingDir, "RunInfo.xml");
+                    String basesMask = Executors.newSingleThreadExecutor()
+                            .submit(new CreateBasesMaskCallable(runInfoXmlFile, sampleSheetFile)).get();
+
                     for (Integer laneIndex : laneMap.keySet()) {
 
                         File unalignedDir = new File(bclFlowcellDir, String.format("%s.%d", "Unaligned", laneIndex));
@@ -190,7 +193,7 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                 .siteName(siteName);
                         builder.addArgument(ConfigureBCLToFastqCLI.INPUTDIR, baseCallsDir.getAbsolutePath())
                                 .addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGBCL).addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGSTATS)
-                                // .addArgument(ConfigureBCLToFastqCLI.INDEXLENGTH, barcodeLength)
+                                .addArgument(ConfigureBCLToFastqCLI.BASESMASK, basesMask)
                                 .addArgument(ConfigureBCLToFastqCLI.FASTQCLUSTERCOUNT, "0")
                                 .addArgument(ConfigureBCLToFastqCLI.TILES, laneIndex.toString())
                                 .addArgument(ConfigureBCLToFastqCLI.OUTPUTDIR, unalignedDir.getAbsolutePath())
@@ -218,7 +221,8 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                             graph.addEdge(removeUnalignedDirectoryJob, configureBCLToFastQJob);
                         }
 
-                        builder = WorkflowJobFactory.createJob(++count, MakeCLI.class, attempt.getId()).siteName(siteName).numberOfProcessors(2);
+                        builder = WorkflowJobFactory.createJob(++count, MakeCLI.class, attempt.getId()).siteName(siteName)
+                                .numberOfProcessors(2);
                         builder.addArgument(MakeCLI.THREADS, "2").addArgument(MakeCLI.WORKDIR, unalignedDir.getAbsolutePath());
                         CondorJob makeJob = builder.build();
                         logger.info(makeJob.toString());
@@ -248,13 +252,13 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                             switch (readCount) {
                                 case 1:
-                                    builder = SequencingWorkflowJobFactory.createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId())
-                                            .siteName(siteName);
-                                    sourceFile = new File(bclSampleDirectory,
-                                            String.format("%s_%s_L%03d_R%d_001.fastq.gz", sample.getName(), sample.getBarcode(), laneIndex, 1));
+                                    builder = SequencingWorkflowJobFactory
+                                            .createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId()).siteName(siteName);
+                                    sourceFile = new File(bclSampleDirectory, String.format("%s_%s_L%03d_R%d_001.fastq.gz",
+                                            sample.getName(), sample.getBarcode(), laneIndex, 1));
 
-                                    outputFile = new File(workflowDirectory,
-                                            String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(), sample.getBarcode(), laneIndex, 1));
+                                    outputFile = new File(workflowDirectory, String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(),
+                                            sample.getBarcode(), laneIndex, 1));
 
                                     // outputFile = new File(workflowDirectory, String.format("%s_R%d.fastq.gz",
                                     // workflowRun.getName(), 1));
@@ -272,13 +276,13 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                 default:
 
                                     // read 1
-                                    builder = SequencingWorkflowJobFactory.createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId())
-                                            .siteName(siteName);
-                                    sourceFile = new File(bclSampleDirectory,
-                                            String.format("%s_%s_L%03d_R%d_001.fastq.gz", sample.getName(), sample.getBarcode(), laneIndex, 1));
+                                    builder = SequencingWorkflowJobFactory
+                                            .createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId()).siteName(siteName);
+                                    sourceFile = new File(bclSampleDirectory, String.format("%s_%s_L%03d_R%d_001.fastq.gz",
+                                            sample.getName(), sample.getBarcode(), laneIndex, 1));
 
-                                    outputFile = new File(workflowDirectory,
-                                            String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(), sample.getBarcode(), laneIndex, 1));
+                                    outputFile = new File(workflowDirectory, String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(),
+                                            sample.getBarcode(), laneIndex, 1));
 
                                     // outputFile = new File(workflowDirectory, String.format("%s_R%d.fastq.gz",
                                     // workflowRun.getName(), 1));
@@ -293,13 +297,13 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                     copyJobList.add(copyRead1Job);
 
                                     // read 2
-                                    builder = SequencingWorkflowJobFactory.createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId())
-                                            .siteName(siteName);
-                                    sourceFile = new File(bclSampleDirectory,
-                                            String.format("%s_%s_L%03d_R%d_001.fastq.gz", sample.getName(), sample.getBarcode(), laneIndex, 2));
+                                    builder = SequencingWorkflowJobFactory
+                                            .createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId()).siteName(siteName);
+                                    sourceFile = new File(bclSampleDirectory, String.format("%s_%s_L%03d_R%d_001.fastq.gz",
+                                            sample.getName(), sample.getBarcode(), laneIndex, 2));
 
-                                    outputFile = new File(workflowDirectory,
-                                            String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(), sample.getBarcode(), laneIndex, 2));
+                                    outputFile = new File(workflowDirectory, String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(),
+                                            sample.getBarcode(), laneIndex, 2));
 
                                     // outputFile = new File(workflowDirectory, String.format("%s_R%d.fastq.gz",
                                     // workflowRun.getName(), 2));
@@ -410,7 +414,8 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                 for (Flowcell flowcell : flowcellList) {
 
-                    RegisterToIRODSRunnable registerToIRODSRunnable = new RegisterToIRODSRunnable(mapseqDAOBeanService, attempt.getWorkflowRun());
+                    RegisterToIRODSRunnable registerToIRODSRunnable = new RegisterToIRODSRunnable(mapseqDAOBeanService,
+                            attempt.getWorkflowRun());
                     registerToIRODSRunnable.setFlowcellId(flowcell.getId());
                     es.submit(registerToIRODSRunnable);
 
