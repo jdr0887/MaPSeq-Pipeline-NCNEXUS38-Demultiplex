@@ -195,7 +195,7 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                 .addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGBCL).addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGSTATS)
                                 .addArgument(ConfigureBCLToFastqCLI.BASESMASK, basesMask)
                                 .addArgument(ConfigureBCLToFastqCLI.FASTQCLUSTERCOUNT, "0")
-                                .addArgument(ConfigureBCLToFastqCLI.TILES, laneIndex.toString())
+                                .addArgument(ConfigureBCLToFastqCLI.TILES, String.format("s_%d_*", laneIndex))
                                 .addArgument(ConfigureBCLToFastqCLI.OUTPUTDIR, unalignedDir.getAbsolutePath())
                                 .addArgument(ConfigureBCLToFastqCLI.SAMPLESHEET, sampleSheetFile.getAbsolutePath())
                                 .addArgument(ConfigureBCLToFastqCLI.FORCE);
