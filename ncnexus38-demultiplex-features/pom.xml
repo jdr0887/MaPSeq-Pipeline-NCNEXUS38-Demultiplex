@@ -10,6 +10,9 @@
   <artifactId>ncnexus38-demultiplex-features</artifactId>
   <version>0.6.6-SNAPSHOT</version>
   <packaging>pom</packaging>
+  <properties>
+    <maven.site.plugin.skip>true</maven.site.plugin.skip>    
+  </properties>        
   <build>
     <plugins>
       <plugin>
