@@ -54,12 +54,14 @@ public class CreateBasesMaskCallable implements Callable<String> {
             br.readLine();
             String line = br.readLine();
             String[] lineSplit = line.split(",");
-            String index = lineSplit[4];
-            if (index.contains("-")) {
-                readIndex1Length = Integer.valueOf(index.substring(0, index.indexOf("-")).length());
-                readIndex2Length = Integer.valueOf(index.substring(index.indexOf("-") + 1, index.length()).length());
-            } else {
-                readIndex1Length = index.length();
+            if (lineSplit.length > 3) {
+                String index = lineSplit[4];
+                if (index.contains("-")) {
+                    readIndex1Length = Integer.valueOf(index.substring(0, index.indexOf("-")).length());
+                    readIndex2Length = Integer.valueOf(index.substring(index.indexOf("-") + 1, index.length()).length());
+                } else {
+                    readIndex1Length = index.length();
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();

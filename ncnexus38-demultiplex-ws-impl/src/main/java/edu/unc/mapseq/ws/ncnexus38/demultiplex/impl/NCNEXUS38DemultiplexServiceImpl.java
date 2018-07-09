@@ -44,8 +44,8 @@ public class NCNEXUS38DemultiplexServiceImpl implements NCNEXUS38DemultiplexServ
             Workflow workflow = workflows.get(0);
 
             String mapseqOutputDirectory = System.getenv("MAPSEQ_OUTPUT_DIRECTORY");
-            File sampleSheetDirectory = new File(String.format("%s/%s/%s", mapseqOutputDirectory, workflow.getSystem(), "NCNEXUS38"),
-                    "SampleSheets");
+            File sampleSheetDirectory = new File(
+                    String.format("%s/%s/%s", mapseqOutputDirectory, workflow.getSystem().getValue(), "NCNEXUS38"), "SampleSheets");
             if (!sampleSheetDirectory.exists()) {
                 sampleSheetDirectory.mkdirs();
             }

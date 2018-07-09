@@ -24,7 +24,6 @@ import org.renci.jlrm.condor.CondorJobEdge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import edu.unc.mapseq.commons.ncnexus38.demultiplex.CreateBasesMaskCallable;
 import edu.unc.mapseq.commons.ncnexus38.demultiplex.FindReadCountCallable;
 import edu.unc.mapseq.commons.ncnexus38.demultiplex.RegisterToIRODSRunnable;
 import edu.unc.mapseq.commons.ncnexus38.demultiplex.SaveDemultiplexedStatsAttributesRunnable;
@@ -181,9 +180,9 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                 if (MapUtils.isNotEmpty(laneMap)) {
 
-                    File runInfoXmlFile = new File(flowcellStagingDir, "RunInfo.xml");
-                    String basesMask = Executors.newSingleThreadExecutor()
-                            .submit(new CreateBasesMaskCallable(runInfoXmlFile, sampleSheetFile)).get();
+                    // File runInfoXmlFile = new File(flowcellStagingDir, "RunInfo.xml");
+                    // String basesMask = Executors.newSingleThreadExecutor()
+                    // .submit(new CreateBasesMaskCallable(runInfoXmlFile, sampleSheetFile)).get();
 
                     for (Integer laneIndex : laneMap.keySet()) {
 
@@ -193,7 +192,7 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                 .siteName(siteName);
                         builder.addArgument(ConfigureBCLToFastqCLI.INPUTDIR, baseCallsDir.getAbsolutePath())
                                 .addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGBCL).addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGSTATS)
-                                .addArgument(ConfigureBCLToFastqCLI.BASESMASK, basesMask)
+                                /* .addArgument(ConfigureBCLToFastqCLI.BASESMASK, basesMask) */
                                 .addArgument(ConfigureBCLToFastqCLI.FASTQCLUSTERCOUNT, "0")
                                 .addArgument(ConfigureBCLToFastqCLI.TILES, String.format("s_%d_*", laneIndex))
                                 .addArgument(ConfigureBCLToFastqCLI.OUTPUTDIR, unalignedDir.getAbsolutePath())
