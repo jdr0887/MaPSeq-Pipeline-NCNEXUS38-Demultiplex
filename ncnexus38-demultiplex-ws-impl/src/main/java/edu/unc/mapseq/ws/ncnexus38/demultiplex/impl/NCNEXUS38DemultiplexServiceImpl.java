@@ -13,17 +13,18 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import edu.unc.mapseq.dao.FileDataDAO;
+import edu.unc.mapseq.dao.MaPSeqDAOBeanService;
 import edu.unc.mapseq.dao.MaPSeqDAOException;
 import edu.unc.mapseq.dao.model.FileData;
 import edu.unc.mapseq.dao.model.MimeType;
+import edu.unc.mapseq.dao.model.Workflow;
 import edu.unc.mapseq.ws.ncnexus38.demultiplex.NCNEXUS38DemultiplexService;
 
 public class NCNEXUS38DemultiplexServiceImpl implements NCNEXUS38DemultiplexService {
 
     private static final Logger logger = LoggerFactory.getLogger(NCNEXUS38DemultiplexServiceImpl.class);
 
-    private FileDataDAO fileDataDAO;
+    private MaPSeqDAOBeanService maPSeqDAOBeanService;
 
     private String flowcellStagingDirectory;
 
@@ -33,8 +34,18 @@ public class NCNEXUS38DemultiplexServiceImpl implements NCNEXUS38DemultiplexServ
         Long ret = null;
         try {
 
+            String workflowName = this.getClass().getSimpleName().replaceAll("ServiceImpl", "");
+            List<Workflow> workflows = maPSeqDAOBeanService.getWorkflowDAO().findByName(workflowName);
+
+            if (CollectionUtils.isEmpty(workflows)) {
+                logger.error("Workflow doesn't exist: " + workflowName);
+            }
+
+            Workflow workflow = workflows.get(0);
+
             String mapseqOutputDirectory = System.getenv("MAPSEQ_OUTPUT_DIRECTORY");
-            File sampleSheetDirectory = new File(String.format("%s/%s/%s", mapseqOutputDirectory, "exp", "NCNEXUS38"), "SampleSheets");
+            File sampleSheetDirectory = new File(String.format("%s/%s/%s", mapseqOutputDirectory, workflow.getSystem(), "NCNEXUS38"),
+                    "SampleSheets");
             if (!sampleSheetDirectory.exists()) {
                 sampleSheetDirectory.mkdirs();
             }
@@ -52,11 +63,11 @@ public class NCNEXUS38DemultiplexServiceImpl implements NCNEXUS38DemultiplexServ
 
             FileData fileData = new FileData(file.getName(), file.getParentFile().getAbsolutePath(), MimeType.TEXT_CSV);
 
-            List<FileData> fileDataList = fileDataDAO.findByExample(fileData);
+            List<FileData> fileDataList = maPSeqDAOBeanService.getFileDataDAO().findByExample(fileData);
             if (CollectionUtils.isNotEmpty(fileDataList)) {
                 fileData = fileDataList.get(0);
             } else {
-                fileData.setId(fileDataDAO.save(fileData));
+                fileData.setId(maPSeqDAOBeanService.getFileDataDAO().save(fileData));
             }
             ret = fileData.getId();
 
@@ -76,12 +87,12 @@ public class NCNEXUS38DemultiplexServiceImpl implements NCNEXUS38DemultiplexServ
         return false;
     }
 
-    public FileDataDAO getFileDataDAO() {
-        return fileDataDAO;
+    public MaPSeqDAOBeanService getMaPSeqDAOBeanService() {
+        return maPSeqDAOBeanService;
     }
 
-    public void setFileDataDAO(FileDataDAO fileDataDAO) {
-        this.fileDataDAO = fileDataDAO;
+    public void setMaPSeqDAOBeanService(MaPSeqDAOBeanService maPSeqDAOBeanService) {
+        this.maPSeqDAOBeanService = maPSeqDAOBeanService;
     }
 
     public String getFlowcellStagingDirectory() {
