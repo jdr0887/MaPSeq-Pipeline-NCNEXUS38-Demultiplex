@@ -41,6 +41,7 @@ import edu.unc.mapseq.module.core.CopyDirectoryCLI;
 import edu.unc.mapseq.module.core.CopyFileCLI;
 import edu.unc.mapseq.module.core.MakeCLI;
 import edu.unc.mapseq.module.core.RemoveCLI;
+import edu.unc.mapseq.module.sequencing.bcl2fastq.BCL2FastqCLI;
 import edu.unc.mapseq.module.sequencing.casava.ConfigureBCLToFastqCLI;
 import edu.unc.mapseq.workflow.WorkflowException;
 import edu.unc.mapseq.workflow.core.WorkflowJobFactory;
@@ -188,19 +189,20 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                         File unalignedDir = new File(bclFlowcellDir, String.format("%s.%d", "Unaligned", laneIndex));
 
-                        CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, ConfigureBCLToFastqCLI.class, attempt.getId())
+                        CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, BCL2FastqCLI.class, attempt.getId())
                                 .siteName(siteName);
-                        builder.addArgument(ConfigureBCLToFastqCLI.INPUTDIR, baseCallsDir.getAbsolutePath())
-                                .addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGBCL).addArgument(ConfigureBCLToFastqCLI.IGNOREMISSINGSTATS)
-                                /* .addArgument(ConfigureBCLToFastqCLI.BASESMASK, basesMask) */
-                                .addArgument(ConfigureBCLToFastqCLI.FASTQCLUSTERCOUNT, "0")
-                                .addArgument(ConfigureBCLToFastqCLI.TILES, String.format("s_%d_*", laneIndex))
-                                .addArgument(ConfigureBCLToFastqCLI.OUTPUTDIR, unalignedDir.getAbsolutePath())
-                                .addArgument(ConfigureBCLToFastqCLI.SAMPLESHEET, sampleSheetFile.getAbsolutePath())
-                                .addArgument(ConfigureBCLToFastqCLI.FORCE);
+                        builder.addArgument(BCL2FastqCLI.INPUTDIR, baseCallsDir.getAbsolutePath())
+                                .addArgument(BCL2FastqCLI.IGNOREMISSINGBCLS)
+                                // .addArgument(BCL2FastqCLI.USESBASESMASK, basesMask)
+                                .addArgument(BCL2FastqCLI.TILES, String.format("s_%d_*", laneIndex))
+                                .addArgument(BCL2FastqCLI.OUTPUTDIR, unalignedDir.getAbsolutePath())
+                                .addArgument(BCL2FastqCLI.LOADINGTHREADS, "4").addArgument(BCL2FastqCLI.PROCESSINGTHREADS, "4")
+                                .addArgument(BCL2FastqCLI.WRITINGTHREADS, "4")
+                                .addArgument(BCL2FastqCLI.RUNFOLDERDIR, bclFlowcellDir.getAbsolutePath())
+                                .addArgument(BCL2FastqCLI.SAMPLESHEET, sampleSheetFile.getAbsolutePath());
 
                         if (allowMismatches) {
-                            builder.addArgument(ConfigureBCLToFastqCLI.MISMATCHES);
+                            builder.addArgument(BCL2FastqCLI.BARCODEMISMATCHES, 1);
                         }
 
                         CondorJob configureBCLToFastQJob = builder.build();
