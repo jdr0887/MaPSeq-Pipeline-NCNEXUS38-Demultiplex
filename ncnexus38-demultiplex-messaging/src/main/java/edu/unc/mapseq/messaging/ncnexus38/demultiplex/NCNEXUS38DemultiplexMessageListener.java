@@ -1,22 +1,19 @@
 package edu.unc.mapseq.messaging.ncnexus38.demultiplex;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.Reader;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.TextMessage;
 
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -155,14 +152,32 @@ public class NCNEXUS38DemultiplexMessageListener extends AbstractSequencingMessa
             logger.debug("fileData.toString(): {}", sampleSheetFileData.toString());
 
             File sampleSheet = new File(sampleSheetFileData.getPath(), sampleSheetFileData.getName());
-            Reader in = new FileReader(sampleSheet);
-            CSVFormat csvFormat = CSVFormat.DEFAULT.withSkipHeaderRecord().withHeader("FCID", "Lane", "SampleID", "SampleRef", "Index", "Description",
-                    "Control", "Recipe", "Operator", "SampleProject");
-            CSVParser parser = csvFormat.parse(in);
-            List<CSVRecord> records = parser.getRecords();
-            final Set<String> studyNameSet = new HashSet<>();
-            records.forEach(a -> studyNameSet.add(a.get("SampleProject")));
-            Collections.synchronizedSet(studyNameSet);
+
+            List<String> lines = new LinkedList<>();
+            try (FileReader fr = new FileReader(sampleSheet); BufferedReader br = new BufferedReader(fr)) {
+
+                boolean canStartReading = false;
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (line.startsWith("Lane,Sample_ID,Sample_Name,")) {
+                        canStartReading = true;
+                        continue;
+                    }
+
+                    if (!canStartReading) {
+                        continue;
+                    }
+
+                    lines.add(line);
+
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            final Set<String> studyNameSet = lines.stream().map(a -> StringUtils.splitPreserveAllTokens(a, ",")[9]).distinct()
+                    .collect(Collectors.toSet());
 
             if (CollectionUtils.isEmpty(studyNameSet)) {
                 logger.error("No Study names in SampleSheet");
@@ -219,20 +234,26 @@ public class NCNEXUS38DemultiplexMessageListener extends AbstractSequencingMessa
             flowcell.getFileDatas().add(sampleSheetFileData);
             flowcellDAO.save(flowcell);
 
-            Set<Integer> laneIndexSet = new HashSet<Integer>();
-            for (CSVRecord record : records) {
-                String laneIndex = record.get("Lane");
-                laneIndexSet.add(Integer.valueOf(laneIndex));
-                String sampleId = record.get("SampleID");
-                String barcode = record.get("Index");
-                String description = record.get("Description");
+            final Flowcell finalFlowcell = flowcell;
 
-                Sample sample = new Sample(sampleId);
+            for (String line : lines) {
+
+                // Lane,Sample_ID,Sample_Name,Sample_Plate,Sample_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description
+                String[] lineSplit = StringUtils.splitPreserveAllTokens(line, ",");
+
+                Integer lane = Integer.valueOf(lineSplit[0]);
+
+                String sampleName = lineSplit[2];
+                String barcode = lineSplit[6];
+                String description = lineSplit[10];
+
+                Sample sample = new Sample(sampleName);
                 sample.setBarcode(barcode);
-                sample.setLaneIndex(Integer.valueOf(laneIndex));
+                sample.setLaneIndex(lane);
                 sample.setFlowcell(flowcell);
                 sample.setStudy(study);
                 sample.setId(sampleDAO.save(sample));
+
                 if (StringUtils.isNotEmpty(description)) {
                     Attribute attribute = new Attribute("production.id.description", description);
                     attribute.setId(attributeDAO.save(attribute));
@@ -241,16 +262,18 @@ public class NCNEXUS38DemultiplexMessageListener extends AbstractSequencingMessa
                 }
             }
 
-            Collections.synchronizedSet(laneIndexSet);
-            for (Integer lane : laneIndexSet) {
-                Sample sample = new Sample();
-                sample.setBarcode("Undetermined");
-                sample.setLaneIndex(lane);
-                sample.setName(String.format("lane%d", lane));
-                sample.setFlowcell(flowcell);
-                sample.setStudy(study);
-                sampleDAO.save(sample);
-            }
+            lines.stream().map(a -> Integer.valueOf(StringUtils.splitPreserveAllTokens(a, ",")[0])).distinct().forEach(a -> {
+                try {
+                    Sample sample = new Sample(String.format("lane%d", a));
+                    sample.setBarcode("Undetermined");
+                    sample.setLaneIndex(a);
+                    sample.setFlowcell(finalFlowcell);
+                    sample.setStudy(study);
+                    sampleDAO.save(sample);
+                } catch (MaPSeqDAOException e) {
+                    logger.error(e.getMessage(), e);
+                }
+            });
 
             workflowRun.getFlowcells().add(flowcell);
 
@@ -265,7 +288,7 @@ public class NCNEXUS38DemultiplexMessageListener extends AbstractSequencingMessa
             attempt.setWorkflowRun(workflowRun);
             workflowRunAttemptDAO.save(attempt);
 
-        } catch (WorkflowException | DOMException | MaPSeqDAOException | IOException e) {
+        } catch (WorkflowException | DOMException | MaPSeqDAOException e) {
             logger.warn("Error", e);
         }
 
@@ -322,7 +345,8 @@ public class NCNEXUS38DemultiplexMessageListener extends AbstractSequencingMessa
                     workflowRunAttemptDAO.delete(attempts);
 
                 }
-                List<SampleWorkflowRunDependency> sampleWorkflowRunDepedencyList = sampleWorkflowRunDependencyDAO.findBySampleId(sample.getId());
+                List<SampleWorkflowRunDependency> sampleWorkflowRunDepedencyList = sampleWorkflowRunDependencyDAO
+                        .findBySampleId(sample.getId());
                 sampleWorkflowRunDependencyDAO.delete(sampleWorkflowRunDepedencyList);
 
                 workflowRunDAO.delete(workflowRuns);
