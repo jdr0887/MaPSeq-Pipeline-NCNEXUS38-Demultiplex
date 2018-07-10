@@ -38,8 +38,7 @@ import edu.unc.mapseq.dao.model.Sample;
 import edu.unc.mapseq.dao.model.WorkflowRun;
 import edu.unc.mapseq.dao.model.WorkflowRunAttempt;
 import edu.unc.mapseq.module.core.CopyDirectoryCLI;
-import edu.unc.mapseq.module.core.CopyFileCLI;
-import edu.unc.mapseq.module.core.MakeCLI;
+import edu.unc.mapseq.module.core.CopyFile2CLI;
 import edu.unc.mapseq.module.core.RemoveCLI;
 import edu.unc.mapseq.module.sequencing.bcl2fastq.BCL2FastqCLI;
 import edu.unc.mapseq.workflow.WorkflowException;
@@ -188,12 +187,12 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                 .addArgument(BCL2FastqCLI.RUNFOLDERDIR, bclFlowcellDir.getAbsolutePath())
                                 .addArgument(BCL2FastqCLI.SAMPLESHEET, sampleSheetFile.getAbsolutePath());
 
-                        CondorJob configureBCLToFastQJob = builder.build();
-                        logger.info(configureBCLToFastQJob.toString());
-                        graph.addVertex(configureBCLToFastQJob);
+                        CondorJob bcl2FastqJob = builder.build();
+                        logger.info(bcl2FastqJob.toString());
+                        graph.addVertex(bcl2FastqJob);
 
                         if (copyFromStagingJob != null) {
-                            graph.addEdge(copyFromStagingJob, configureBCLToFastQJob);
+                            graph.addEdge(copyFromStagingJob, bcl2FastqJob);
                         }
 
                         if (!flowcellStagingDir.exists() && unalignedDir.exists()) {
@@ -202,16 +201,8 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                             CondorJob removeUnalignedDirectoryJob = builder.build();
                             logger.info(removeUnalignedDirectoryJob.toString());
                             graph.addVertex(removeUnalignedDirectoryJob);
-                            graph.addEdge(removeUnalignedDirectoryJob, configureBCLToFastQJob);
+                            graph.addEdge(removeUnalignedDirectoryJob, bcl2FastqJob);
                         }
-
-                        builder = WorkflowJobFactory.createJob(++count, MakeCLI.class, attempt.getId()).siteName(siteName)
-                                .numberOfProcessors(2);
-                        builder.addArgument(MakeCLI.THREADS, "2").addArgument(MakeCLI.WORKDIR, unalignedDir.getAbsolutePath());
-                        CondorJob makeJob = builder.build();
-                        logger.info(makeJob.toString());
-                        graph.addVertex(makeJob);
-                        graph.addEdge(configureBCLToFastQJob, makeJob);
 
                         List<CondorJob> copyJobList = new ArrayList<CondorJob>();
 
@@ -228,32 +219,28 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                             logger.info("workflowDirectory.getAbsolutePath(): {}", workflowDirectory.getAbsolutePath());
 
-                            File projectDirectory = new File(unalignedDir, String.format("Project_%s", sample.getStudy().getName()));
-                            File bclSampleDirectory = new File(projectDirectory, String.format("Sample_%s", sample.getName()));
+                            File projectDirectory = new File(unalignedDir, sample.getStudy().getName());
 
-                            File sourceFile = null;
                             File outputFile = null;
 
                             switch (readCount) {
                                 case 1:
                                     builder = SequencingWorkflowJobFactory
-                                            .createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId()).siteName(siteName);
-                                    sourceFile = new File(bclSampleDirectory, String.format("%s_%s_L%03d_R%d_001.fastq.gz",
-                                            sample.getName(), sample.getBarcode(), laneIndex, 1));
+                                            .createJob(++count, CopyFile2CLI.class, attempt.getId(), sample.getId()).siteName(siteName);
 
-                                    outputFile = new File(workflowDirectory, String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(),
-                                            sample.getBarcode(), laneIndex, 1));
+                                    outputFile = new File(workflowDirectory,
+                                            String.format("%s_%s_L%03d_R1.fastq.gz", flowcell.getName(), sample.getBarcode(), laneIndex));
 
-                                    // outputFile = new File(workflowDirectory, String.format("%s_R%d.fastq.gz",
-                                    // workflowRun.getName(), 1));
+                                    builder.addArgument(CopyFile2CLI.SOURCEPARENTDIR, projectDirectory.getAbsolutePath())
+                                            .addArgument(CopyFile2CLI.SOURCEPREFIX, sample.getName())
+                                            .addArgument(CopyFile2CLI.SOURCESUFFIX, String.format("L%03d_R1_001.fastq.gz", laneIndex))
+                                            .addArgument(CopyFile2CLI.DESTINATION, outputFile.getAbsolutePath())
+                                            .addArgument(CopyFile2CLI.MIMETYPE, MimeType.FASTQ.toString());
 
-                                    builder.addArgument(CopyFileCLI.SOURCE, sourceFile.getAbsolutePath())
-                                            .addArgument(CopyFileCLI.DESTINATION, outputFile.getAbsolutePath())
-                                            .addArgument(CopyFileCLI.MIMETYPE, MimeType.FASTQ.toString());
                                     copyRead1Job = builder.build();
                                     logger.info(copyRead1Job.toString());
                                     graph.addVertex(copyRead1Job);
-                                    graph.addEdge(makeJob, copyRead1Job);
+                                    graph.addEdge(bcl2FastqJob, copyRead1Job);
                                     copyJobList.add(copyRead1Job);
                                     break;
                                 case 2:
@@ -261,59 +248,46 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
                                     // read 1
                                     builder = SequencingWorkflowJobFactory
-                                            .createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId()).siteName(siteName);
-                                    sourceFile = new File(bclSampleDirectory, String.format("%s_%s_L%03d_R%d_001.fastq.gz",
-                                            sample.getName(), sample.getBarcode(), laneIndex, 1));
+                                            .createJob(++count, CopyFile2CLI.class, attempt.getId(), sample.getId()).siteName(siteName);
 
-                                    outputFile = new File(workflowDirectory, String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(),
-                                            sample.getBarcode(), laneIndex, 1));
+                                    outputFile = new File(workflowDirectory,
+                                            String.format("%s_%s_L%03d_R1.fastq.gz", flowcell.getName(), sample.getBarcode(), laneIndex));
 
-                                    // outputFile = new File(workflowDirectory, String.format("%s_R%d.fastq.gz",
-                                    // workflowRun.getName(), 1));
+                                    builder.addArgument(CopyFile2CLI.SOURCEPARENTDIR, projectDirectory.getAbsolutePath())
+                                            .addArgument(CopyFile2CLI.SOURCEPREFIX, sample.getName())
+                                            .addArgument(CopyFile2CLI.SOURCESUFFIX, String.format("L%03d_R1_001.fastq.gz", laneIndex))
+                                            .addArgument(CopyFile2CLI.DESTINATION, outputFile.getAbsolutePath())
+                                            .addArgument(CopyFile2CLI.MIMETYPE, MimeType.FASTQ.toString());
 
-                                    builder.addArgument(CopyFileCLI.SOURCE, sourceFile.getAbsolutePath())
-                                            .addArgument(CopyFileCLI.DESTINATION, outputFile.getAbsolutePath())
-                                            .addArgument(CopyFileCLI.MIMETYPE, MimeType.FASTQ.toString());
                                     copyRead1Job = builder.build();
                                     logger.info(copyRead1Job.toString());
                                     graph.addVertex(copyRead1Job);
-                                    graph.addEdge(makeJob, copyRead1Job);
+                                    graph.addEdge(bcl2FastqJob, copyRead1Job);
                                     copyJobList.add(copyRead1Job);
 
                                     // read 2
                                     builder = SequencingWorkflowJobFactory
-                                            .createJob(++count, CopyFileCLI.class, attempt.getId(), sample.getId()).siteName(siteName);
-                                    sourceFile = new File(bclSampleDirectory, String.format("%s_%s_L%03d_R%d_001.fastq.gz",
-                                            sample.getName(), sample.getBarcode(), laneIndex, 2));
+                                            .createJob(++count, CopyFile2CLI.class, attempt.getId(), sample.getId()).siteName(siteName);
 
                                     outputFile = new File(workflowDirectory, String.format("%s_%s_L%03d_R%d.fastq.gz", flowcell.getName(),
                                             sample.getBarcode(), laneIndex, 2));
 
-                                    // outputFile = new File(workflowDirectory, String.format("%s_R%d.fastq.gz",
-                                    // workflowRun.getName(), 2));
+                                    builder.addArgument(CopyFile2CLI.SOURCEPARENTDIR, projectDirectory.getAbsolutePath())
+                                            .addArgument(CopyFile2CLI.SOURCEPREFIX, sample.getName())
+                                            .addArgument(CopyFile2CLI.SOURCESUFFIX, String.format("L%03d_R2_001.fastq.gz", laneIndex))
+                                            .addArgument(CopyFile2CLI.DESTINATION, outputFile.getAbsolutePath())
+                                            .addArgument(CopyFile2CLI.MIMETYPE, MimeType.FASTQ.toString());
 
-                                    builder.addArgument(CopyFileCLI.SOURCE, sourceFile.getAbsolutePath())
-                                            .addArgument(CopyFileCLI.DESTINATION, outputFile.getAbsolutePath())
-                                            .addArgument(CopyFileCLI.MIMETYPE, MimeType.FASTQ.toString());
                                     copyRead2Job = builder.build();
                                     logger.info(copyRead2Job.toString());
                                     graph.addVertex(copyRead2Job);
-                                    graph.addEdge(makeJob, copyRead2Job);
+                                    graph.addEdge(bcl2FastqJob, copyRead2Job);
                                     copyJobList.add(copyRead2Job);
                                     break;
                             }
 
                         }
 
-                        // builder = WorkflowJobFactory.createJob(++count, RemoveCLI.class, attempt.getId())
-                        // .siteName(siteName);
-                        // builder.addArgument(RemoveCLI.FILE, unalignedDir);
-                        // CondorJob removeUnalignedDirectoryJob = builder.build();
-                        // logger.info(removeUnalignedDirectoryJob.toString());
-                        // graph.addVertex(removeUnalignedDirectoryJob);
-                        // for (CondorJob copyJob : copyJobList) {
-                        // graph.addEdge(copyJob, removeUnalignedDirectoryJob);
-                        // }
                     }
 
                 }
