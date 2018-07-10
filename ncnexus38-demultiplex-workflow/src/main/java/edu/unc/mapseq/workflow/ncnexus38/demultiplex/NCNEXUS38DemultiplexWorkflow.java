@@ -42,7 +42,6 @@ import edu.unc.mapseq.module.core.CopyFileCLI;
 import edu.unc.mapseq.module.core.MakeCLI;
 import edu.unc.mapseq.module.core.RemoveCLI;
 import edu.unc.mapseq.module.sequencing.bcl2fastq.BCL2FastqCLI;
-import edu.unc.mapseq.module.sequencing.casava.ConfigureBCLToFastqCLI;
 import edu.unc.mapseq.workflow.WorkflowException;
 import edu.unc.mapseq.workflow.core.WorkflowJobFactory;
 import edu.unc.mapseq.workflow.sequencing.AbstractSequencingWorkflow;
@@ -67,16 +66,15 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
         WorkflowRunAttempt attempt = getWorkflowRunAttempt();
         WorkflowRun workflowRun = attempt.getWorkflowRun();
 
-        boolean allowMismatches = true;
-
         String siteName = getWorkflowBeanService().getAttributes().get("siteName");
         String flowcellStagingDirectory = getWorkflowBeanService().getAttributes().get("flowcellStagingDirectory");
 
-        Set<Attribute> workflowRunAttributeList = workflowRun.getAttributes();
-        for (Attribute attribute : workflowRunAttributeList) {
-            if (attribute.getName().equals("allowMismatches") && attribute.getValue().equalsIgnoreCase("false")) {
-                allowMismatches = false;
-            }
+        // allowable values = 0,1,2
+        Integer allowMismatches = 1;
+        Attribute allowMismatchesAttribute = workflowRun.getAttributes().stream().filter(a -> a.getName().equals("allowMismatches"))
+                .findFirst().orElse(null);
+        if (allowMismatchesAttribute != null) {
+            allowMismatches = Integer.valueOf(allowMismatchesAttribute.getValue());
         }
 
         try {
@@ -90,21 +88,18 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
 
             for (Flowcell flowcell : flowcellList) {
 
-                File sampleSheetFile = null;
                 Set<FileData> flowcellFileDataSet = flowcell.getFileDatas();
-                if (CollectionUtils.isNotEmpty(flowcellFileDataSet)) {
-                    for (FileData fileData : flowcellFileDataSet) {
-                        if (fileData.getName().equals(String.format("%s.csv", flowcell.getName()))) {
-                            sampleSheetFile = new File(fileData.getPath(), fileData.getName());
-                            break;
-                        }
-                    }
+
+                FileData sampleSheetFileData = flowcellFileDataSet.stream()
+                        .filter(fileData -> fileData.getName().equals(String.format("%s.csv", flowcell.getName()))).findFirst()
+                        .orElse(null);
+
+                if (sampleSheetFileData == null) {
+                    logger.error("SampleSheet FileData is null: {}", flowcell.toString());
+                    throw new WorkflowException("SampleSheet FileData is null: " + flowcell.getName());
                 }
 
-                if (sampleSheetFile == null) {
-                    logger.error("SampleSheet is null: {}", flowcell.toString());
-                    throw new WorkflowException("SampleSheet is null: " + flowcell.getName());
-                }
+                File sampleSheetFile = new File(sampleSheetFileData.getPath(), sampleSheetFileData.getName());
 
                 if (!sampleSheetFile.exists()) {
                     logger.error("Specified sample sheet doesn't exist: {}", sampleSheetFile.getAbsolutePath());
@@ -112,13 +107,10 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                 }
 
                 Integer readCount = null;
-                if (CollectionUtils.isNotEmpty(flowcell.getAttributes())) {
-                    for (Attribute attribute : flowcell.getAttributes()) {
-                        if ("readCount".equals(attribute.getName())) {
-                            readCount = Integer.valueOf(attribute.getValue());
-                            break;
-                        }
-                    }
+                Attribute readCountAttribute = flowcell.getAttributes().stream().filter(a -> "readCount".equals(a.getName())).findFirst()
+                        .orElse(null);
+                if (readCountAttribute != null) {
+                    readCount = Integer.valueOf(readCountAttribute.getValue());
                 }
 
                 File bclDir = new File(flowcell.getBaseDirectory());
@@ -138,18 +130,13 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                     logger.info("sampleList.size() = {}", sampleList.size());
 
                     for (Sample sample : sampleList) {
-                        if (laneMap.containsKey(sample.getLaneIndex()) || "Undetermined".equals(sample.getBarcode())) {
-                            continue;
-                        }
-                        laneMap.put(sample.getLaneIndex(), new ArrayList<Sample>());
-                    }
-
-                    for (Sample sample : sampleList) {
                         if ("Undetermined".equals(sample.getBarcode())) {
                             continue;
                         }
+                        laneMap.putIfAbsent(sample.getLaneIndex(), new ArrayList<Sample>());
                         laneMap.get(sample.getLaneIndex()).add(sample);
                     }
+
                 }
 
                 CondorJob copyFromStagingJob = null;
@@ -192,7 +179,7 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                         CondorJobBuilder builder = WorkflowJobFactory.createJob(++count, BCL2FastqCLI.class, attempt.getId())
                                 .siteName(siteName);
                         builder.addArgument(BCL2FastqCLI.INPUTDIR, baseCallsDir.getAbsolutePath())
-                                .addArgument(BCL2FastqCLI.IGNOREMISSINGBCLS)
+                                .addArgument(BCL2FastqCLI.IGNOREMISSINGBCLS).addArgument(BCL2FastqCLI.BARCODEMISMATCHES, allowMismatches)
                                 // .addArgument(BCL2FastqCLI.USESBASESMASK, basesMask)
                                 .addArgument(BCL2FastqCLI.TILES, String.format("s_%d_*", laneIndex))
                                 .addArgument(BCL2FastqCLI.OUTPUTDIR, unalignedDir.getAbsolutePath())
@@ -200,10 +187,6 @@ public class NCNEXUS38DemultiplexWorkflow extends AbstractSequencingWorkflow {
                                 .addArgument(BCL2FastqCLI.WRITINGTHREADS, "4")
                                 .addArgument(BCL2FastqCLI.RUNFOLDERDIR, bclFlowcellDir.getAbsolutePath())
                                 .addArgument(BCL2FastqCLI.SAMPLESHEET, sampleSheetFile.getAbsolutePath());
-
-                        if (allowMismatches) {
-                            builder.addArgument(BCL2FastqCLI.BARCODEMISMATCHES, 1);
-                        }
 
                         CondorJob configureBCLToFastQJob = builder.build();
                         logger.info(configureBCLToFastQJob.toString());
