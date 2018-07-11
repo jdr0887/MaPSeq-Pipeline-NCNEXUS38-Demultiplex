@@ -2,7 +2,7 @@ package edu.unc.mapseq.commons.ncnexus38.demultiplex;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.Collections;
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -10,20 +10,26 @@ import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
+import edu.unc.mapseq.dao.AttributeDAO;
 import edu.unc.mapseq.dao.MaPSeqDAOBeanService;
 import edu.unc.mapseq.dao.model.Attribute;
 import edu.unc.mapseq.dao.model.Flowcell;
@@ -33,13 +39,13 @@ public class SaveDemultiplexedStatsAttributesRunnable implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(SaveDemultiplexedStatsAttributesRunnable.class);
 
-    private MaPSeqDAOBeanService mapseqDAOBeanService;
+    private MaPSeqDAOBeanService maPSeqDAOBeanService;
 
     private Flowcell flowcell;
 
-    public SaveDemultiplexedStatsAttributesRunnable(MaPSeqDAOBeanService mapseqDAOBeanService, Flowcell flowcell) {
+    public SaveDemultiplexedStatsAttributesRunnable(MaPSeqDAOBeanService maPSeqDAOBeanService, Flowcell flowcell) {
         super();
-        this.mapseqDAOBeanService = mapseqDAOBeanService;
+        this.maPSeqDAOBeanService = maPSeqDAOBeanService;
         this.flowcell = flowcell;
     }
 
@@ -47,29 +53,36 @@ public class SaveDemultiplexedStatsAttributesRunnable implements Runnable {
     public void run() {
         logger.debug("ENTERING run()");
 
+        AttributeDAO attributeDAO = maPSeqDAOBeanService.getAttributeDAO();
+
         try {
 
             File flowcellDir = new File(flowcell.getBaseDirectory(), flowcell.getName());
             String flowcellProper = null;
 
-            DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
             File runInfoXmlFile = new File(flowcellDir, "RunInfo.xml");
             if (!runInfoXmlFile.exists()) {
                 logger.error("RunInfo.xml file does not exist: {}", runInfoXmlFile.getAbsolutePath());
                 return;
             }
-            FileInputStream fis = new FileInputStream(runInfoXmlFile);
-            InputSource inputSource = new InputSource(fis);
-            Document document = documentBuilder.parse(inputSource);
-            XPath xpath = XPathFactory.newInstance().newXPath();
 
-            // find the flowcell
-            String runFlowcellIdPath = "/RunInfo/Run/Flowcell";
-            Node runFlowcellIdNode = (Node) xpath.evaluate(runFlowcellIdPath, document, XPathConstants.NODE);
-            flowcellProper = runFlowcellIdNode.getTextContent();
-            logger.debug("flowcell = {}", flowcellProper);
+            try (FileInputStream fis = new FileInputStream(runInfoXmlFile)) {
+                InputSource inputSource = new InputSource(fis);
+                DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+                Document document = documentBuilder.parse(inputSource);
+                XPath xpath = XPathFactory.newInstance().newXPath();
 
-            List<Sample> sampleList = mapseqDAOBeanService.getSampleDAO().findByFlowcellId(flowcell.getId());
+                // find the flowcell
+                String runFlowcellIdPath = "/RunInfo/Run/Flowcell";
+                Node runFlowcellIdNode = (Node) xpath.evaluate(runFlowcellIdPath, document, XPathConstants.NODE);
+                flowcellProper = runFlowcellIdNode.getTextContent();
+                logger.debug("flowcell = {}", flowcellProper);
+
+            } catch (XPathExpressionException | DOMException | ParserConfigurationException | SAXException | IOException e) {
+                e.printStackTrace();
+            }
+
+            List<Sample> sampleList = maPSeqDAOBeanService.getSampleDAO().findByFlowcellId(flowcell.getId());
 
             if (sampleList == null) {
                 logger.warn("sampleList was null");
@@ -78,207 +91,144 @@ public class SaveDemultiplexedStatsAttributesRunnable implements Runnable {
 
             for (Sample sample : sampleList) {
 
-                File unalignedDir = new File(flowcellDir, String.format("Unaligned.%d", sample.getLaneIndex()));
-                File baseCallStatsDir = new File(unalignedDir, String.format("Basecall_Stats_%s", flowcellProper));
-                File statsFile = new File(baseCallStatsDir, "Demultiplex_Stats.htm");
+                File laneBarcodeHTMLFile = new File(String.format("%s/Unaligned.%s/Reports/html/%s/%s/%s/%s", flowcellDir.getAbsolutePath(),
+                        sample.getLaneIndex(), flowcellProper, sample.getStudy().getName(), sample.getName(), sample.getBarcode()),
+                        "laneBarcode.html");
 
-                if (!statsFile.exists()) {
-                    logger.warn("statsFile doesn't exist: {}", statsFile.getAbsolutePath());
+                if (!laneBarcodeHTMLFile.exists()) {
+                    logger.warn("laneBarcodeHTMLFile doesn't exist: {}", laneBarcodeHTMLFile.getAbsolutePath());
                     continue;
                 }
 
-                logger.info("parsing statsFile: {}", statsFile.getAbsolutePath());
+                logger.info("parsing laneBarcodeHTMLFile: {}", laneBarcodeHTMLFile.getAbsolutePath());
 
-                org.jsoup.nodes.Document doc = Jsoup.parse(FileUtils.readFileToString(statsFile));
-                Iterator<Element> tableIter = doc.select("table").iterator();
-                tableIter.next();
+                Set<Attribute> attributeSet = sample.getAttributes();
 
-                for (Element row : tableIter.next().select("tr")) {
+                if (attributeSet == null) {
+                    attributeSet = new HashSet<Attribute>();
+                }
 
-                    Iterator<Element> tdIter = row.select("td").iterator();
+                try {
+                    org.jsoup.nodes.Document doc = Jsoup.parse(FileUtils.readFileToString(laneBarcodeHTMLFile));
+                    Iterator<Element> tableIter = doc.select("table").iterator();
+                    tableIter.next();
+                    tableIter.next();
 
-                    Element laneElement = tdIter.next();
-                    Element sampleIdElement = tdIter.next();
-                    Element sampleRefElement = tdIter.next();
-                    Element indexElement = tdIter.next();
-                    Element descriptionElement = tdIter.next();
-                    Element controlElement = tdIter.next();
-                    Element projectElement = tdIter.next();
-                    Element yeildElement = tdIter.next();
-                    Element passingFilteringElement = tdIter.next();
-                    Element numberOfReadsElement = tdIter.next();
-                    Element rawClustersPerLaneElement = tdIter.next();
-                    Element perfectIndexReadsElement = tdIter.next();
-                    Element oneMismatchReadsIndexElement = tdIter.next();
-                    Element q30YeildPassingFilteringElement = tdIter.next();
-                    Element meanQualityScorePassingFilteringElement = tdIter.next();
+                    for (Element row : tableIter.next().select("tr")) {
 
-                    if (sample.getName().equals(sampleIdElement.text()) && sample.getLaneIndex().toString().equals(laneElement.text())
-                            && sample.getBarcode().equals(indexElement.text())) {
+                        Elements elements = row.select("td");
 
-                        Set<Attribute> attributeSet = sample.getAttributes();
-
-                        if (attributeSet == null) {
-                            attributeSet = new HashSet<Attribute>();
+                        if (elements.isEmpty()) {
+                            continue;
                         }
 
-                        Set<String> entityAttributeNameSet = new HashSet<String>();
+                        Iterator<Element> tdIter = elements.iterator();
 
-                        for (Attribute attribute : attributeSet) {
-                            entityAttributeNameSet.add(attribute.getName());
-                        }
+                        Element laneElement = tdIter.next();
 
-                        Set<String> synchSet = Collections.synchronizedSet(entityAttributeNameSet);
-
-                        if (StringUtils.isNotEmpty(yeildElement.text())) {
-                            String value = yeildElement.text().replace(",", "");
-                            if (synchSet.contains("yield")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("yield")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("yield", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
-                        }
-
-                        if (StringUtils.isNotEmpty(passingFilteringElement.text())) {
-                            String value = passingFilteringElement.text();
-                            if (synchSet.contains("passedFiltering")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("passedFiltering")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("passedFiltering", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
-                        }
-
+                        Element numberOfReadsElement = tdIter.next();
                         if (StringUtils.isNotEmpty(numberOfReadsElement.text())) {
-                            String value = numberOfReadsElement.text().replace(",", "");
-                            if (synchSet.contains("numberOfReads")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("numberOfReads")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("numberOfReads", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
+                            String key = "numberOfReads";
+                            String value = numberOfReadsElement.text();
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
                         }
 
-                        if (StringUtils.isNotEmpty(rawClustersPerLaneElement.text())) {
-                            String value = rawClustersPerLaneElement.text();
-                            if (synchSet.contains("rawClustersPerLane")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("rawClustersPerLane")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("rawClustersPerLane", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
+                        Element percentOfTheLaneElement = tdIter.next();
+
+                        Element percentOfTheBarcodeElement = tdIter.next();
+                        if (StringUtils.isNotEmpty(percentOfTheBarcodeElement.text())) {
+                            String key = "perfectIndexReads";
+                            String value = percentOfTheBarcodeElement.text();
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
                         }
 
-                        if (StringUtils.isNotEmpty(perfectIndexReadsElement.text())) {
-                            String value = perfectIndexReadsElement.text();
-                            if (synchSet.contains("perfectIndexReads")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("perfectIndexReads")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("perfectIndexReads", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
+                        Element percentOneMismatchElement = tdIter.next();
+                        if (StringUtils.isNotEmpty(percentOneMismatchElement.text())) {
+                            String key = "oneMismatchReadsIndex";
+                            String value = percentOneMismatchElement.text().replace("NaN", "");
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
                         }
 
-                        if (StringUtils.isNotEmpty(oneMismatchReadsIndexElement.text())) {
-                            String value = oneMismatchReadsIndexElement.text();
-                            if (synchSet.contains("oneMismatchReadsIndex")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("oneMismatchReadsIndex")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("oneMismatchReadsIndex", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
+                        Element yeildElement = tdIter.next();
+                        if (StringUtils.isNotEmpty(yeildElement.text())) {
+                            String key = "yield";
+                            String value = yeildElement.text();
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
                         }
 
-                        if (StringUtils.isNotEmpty(q30YeildPassingFilteringElement.text())) {
-                            String value = q30YeildPassingFilteringElement.text();
-                            if (synchSet.contains("q30YieldPassingFiltering")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("q30YieldPassingFiltering")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("q30YieldPassingFiltering", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
+                        Element percentPassingFilteringClustersElement = tdIter.next();
+                        if (StringUtils.isNotEmpty(percentPassingFilteringClustersElement.text())) {
+                            String key = "passingFiltering";
+                            String value = percentPassingFilteringClustersElement.text();
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
                         }
 
-                        if (StringUtils.isNotEmpty(meanQualityScorePassingFilteringElement.text())) {
-                            String value = meanQualityScorePassingFilteringElement.text();
-                            if (synchSet.contains("meanQualityScorePassingFiltering")) {
-                                for (Attribute attribute : attributeSet) {
-                                    if (attribute.getName().equals("meanQualityScorePassingFiltering")) {
-                                        attribute.setValue(value);
-                                        this.mapseqDAOBeanService.getAttributeDAO().save(attribute);
-                                        break;
-                                    }
-                                }
-                            } else {
-                                Attribute attribute = new Attribute("meanQualityScorePassingFiltering", value);
-                                attribute.setId(this.mapseqDAOBeanService.getAttributeDAO().save(attribute));
-                                attributeSet.add(attribute);
-                            }
+                        Element q30YeildElement = tdIter.next();
+                        if (StringUtils.isNotEmpty(q30YeildElement.text())) {
+                            String key = "q30YieldPassingFiltering";
+                            String value = q30YeildElement.text();
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
+                        }
+
+                        Element meanQualityScoreElement = tdIter.next();
+                        if (StringUtils.isNotEmpty(meanQualityScoreElement.text())) {
+                            String key = "meanQualityScorePassingFiltering";
+                            String value = meanQualityScoreElement.text();
+                            Attribute attribute = attributeSet.stream().filter(a -> a.getName().equals(key)).findAny()
+                                    .orElse(new Attribute(key, null));
+                            attribute.setValue(value);
+                            attribute.setId(attributeDAO.save(attribute));
+                            attributeSet.add(attribute);
                         }
 
                         sample.setAttributes(attributeSet);
-                        this.mapseqDAOBeanService.getSampleDAO().save(sample);
-                        System.out.println(String.format("Successfully saved sample: %s", sample.getId()));
+                        maPSeqDAOBeanService.getSampleDAO().save(sample);
                         logger.info(sample.toString());
                     }
 
+                } catch (NumberFormatException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
 
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
 
+    public MaPSeqDAOBeanService getMaPSeqDAOBeanService() {
+        return maPSeqDAOBeanService;
+    }
+
+    public void setMaPSeqDAOBeanService(MaPSeqDAOBeanService maPSeqDAOBeanService) {
+        this.maPSeqDAOBeanService = maPSeqDAOBeanService;
     }
 
     public Flowcell getFlowcell() {
